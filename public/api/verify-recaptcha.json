@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "status": "captcha_verified",
+  "message": "reCAPTCHA token verified successfully via Google API.",
+  "score": 0.9,
+  "timestamp": "2026-08-04T12:25:00Z"
+}
