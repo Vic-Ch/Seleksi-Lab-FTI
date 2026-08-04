@@ -1,0 +1,17 @@
+{
+  "company": "VTech Innovation Tower",
+  "tagline": "Global Technology & Engineering Hub",
+  "address": "Pacific Century Place, Lt. 38, Sudirman Central Business District (SCBD), Jakarta 12190, Indonesia",
+  "coordinates": {
+    "lat": -6.2253,
+    "lng": 106.8086
+  },
+  "phone": "+62 (21) 555-8899",
+  "email": "contact@vtech.com",
+  "hours": {
+    "mon_fri": "08:00 - 18:00 WIB",
+    "support": "24/7 Enterprise Emergency Support"
+  },
+  "status": "Office Open",
+  "mapEmbedUrl": "https://maps.google.com/maps?q=-6.2253,106.8086+(VTech+Enterprise+Headquarters)&t=&z=16&ie=UTF8&iwloc=B&output=embed"
+}
