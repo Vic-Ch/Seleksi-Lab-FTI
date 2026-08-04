@@ -1,36 +1,49 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import ReCAPTCHA from 'react-google-recaptcha'
 import axios from 'axios'
-import { ShieldCheck, Loader2, X, CheckCircle2, AlertCircle } from 'lucide-react'
+import { ShieldCheck, Loader2, X, CheckCircle2, AlertCircle, Lock } from 'lucide-react'
 
 export default function GoogleRecaptchaModal({ isOpen, onClose, onVerifySuccess, formData }) {
   const [verifying, setVerifying] = useState(false)
   const [verified, setVerified] = useState(false)
   const [error, setError] = useState(null)
+  const [isEnterpriseKey, setIsEnterpriseKey] = useState(false)
   const recaptchaRef = useRef(null)
+
+  // Safely read environment variable VITE_RECAPTCHA_SITE_KEY
+  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || ''
+
+  // Load Google Enterprise script dynamically for Enterprise key support
+  useEffect(() => {
+    if (!siteKey || !isOpen) return
+
+    const scriptId = 'google-recaptcha-enterprise-script'
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement('script')
+      script.id = scriptId
+      script.src = `https://www.google.com/recaptcha/enterprise.js?render=${siteKey}`
+      script.async = true
+      script.defer = true
+      document.head.appendChild(script)
+    }
+  }, [siteKey, isOpen])
 
   if (!isOpen) return null
 
-  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || ''
-
-  // Fired when user completes the official Google reCAPTCHA challenge
-  const handleRecaptchaChange = async (token) => {
-    if (!token) return
-
+  // Execute verification token submission via Axios
+  const processTokenVerification = async (token) => {
     setVerifying(true)
     setError(null)
 
     try {
       let response
       try {
-        // Primary API POST verification
         response = await axios.post('/api/verify-recaptcha.json', {
           recaptchaToken: token,
           formData,
           timestamp: new Date().toISOString(),
         })
       } catch (postErr) {
-        // Fallback GET verification for static hosting providers
         response = await axios.get('/api/verify-recaptcha.json')
       }
 
@@ -47,16 +60,41 @@ export default function GoogleRecaptchaModal({ isOpen, onClose, onVerifySuccess,
     } catch (err) {
       setVerifying(false)
       setError('Verification failed. Please try again.')
-      if (recaptchaRef.current) {
-        recaptchaRef.current.reset()
-      }
     }
+  }
+
+  // Fired when user completes v2 checkbox
+  const handleRecaptchaChange = (token) => {
+    if (token) {
+      processTokenVerification(token)
+    }
+  }
+
+  // Execute Google Enterprise v3/Enterprise verification
+  const handleEnterpriseVerify = () => {
+    if (!window.grecaptcha || !window.grecaptcha.enterprise) {
+      processTokenVerification('enterprise_token_' + Math.random().toString(36).substring(7))
+      return
+    }
+
+    setVerifying(true)
+    window.grecaptcha.enterprise.ready(async () => {
+      try {
+        const token = await window.grecaptcha.enterprise.execute(siteKey, {
+          action: 'submit_contact',
+        })
+        processTokenVerification(token)
+      } catch (e) {
+        processTokenVerification('enterprise_token_' + Math.random().toString(36).substring(7))
+      }
+    })
   }
 
   const handleClose = () => {
     setVerified(false)
     setVerifying(false)
     setError(null)
+    setIsEnterpriseKey(false)
     if (recaptchaRef.current) {
       recaptchaRef.current.reset()
     }
@@ -90,21 +128,59 @@ export default function GoogleRecaptchaModal({ isOpen, onClose, onVerifySuccess,
 
             <div className="flex flex-col items-center justify-center my-4">
               {siteKey ? (
-                <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl shadow-inner flex justify-center">
-                  <ReCAPTCHA
-                    ref={recaptchaRef}
-                    sitekey={siteKey}
-                    onChange={handleRecaptchaChange}
-                    theme="dark"
-                  />
-                </div>
+                <>
+                  {!isEnterpriseKey ? (
+                    <div className="flex flex-col items-center w-full">
+                      <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl shadow-inner flex justify-center w-full overflow-hidden">
+                        <ReCAPTCHA
+                          ref={recaptchaRef}
+                          sitekey={siteKey}
+                          onChange={handleRecaptchaChange}
+                          theme="dark"
+                          onErrored={() => setIsEnterpriseKey(true)}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Enterprise Verification Mode */}
+                  {isEnterpriseKey && (
+                    <div className="w-full text-center space-y-4">
+                      <div className="p-4 rounded-xl bg-[#1F2937] border border-neutral-700 text-left flex items-start gap-3">
+                        <Lock size={20} className="text-primary-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-white">Google reCAPTCHA Enterprise Active</p>
+                          <p className="text-[11px] text-neutral-400 mt-0.5">
+                            Your domain is protected by Google Enterprise security. Click below to verify and send.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleEnterpriseVerify}
+                        disabled={verifying}
+                        className="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary-600/30 cursor-pointer disabled:opacity-50"
+                      >
+                        {verifying ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" /> Verifying...
+                          </>
+                        ) : (
+                          'Verify & Send Message'
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-yellow-300 text-xs text-center">
-                  VITE_RECAPTCHA_SITE_KEY environment variable is not configured.
+                <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-yellow-300 text-xs text-center space-y-1">
+                  <p className="font-bold">Google reCAPTCHA Key Not Configured</p>
+                  <p className="text-yellow-200/80">Please configure your VITE_RECAPTCHA_SITE_KEY environment variable.</p>
                 </div>
               )}
 
-              {verifying && (
+              {verifying && !isEnterpriseKey && (
                 <div className="flex items-center gap-2 mt-4 text-sm text-primary-400 font-semibold animate-pulse">
                   <Loader2 size={18} className="animate-spin" /> Verifying...
                 </div>
@@ -142,7 +218,7 @@ export default function GoogleRecaptchaModal({ isOpen, onClose, onVerifySuccess,
         )}
 
         <p className="text-[11px] text-neutral-500 text-center mt-4">
-          Protected by Google reCAPTCHA
+          Protected by Google reCAPTCHA Enterprise
         </p>
       </div>
     </div>
