@@ -1,37 +1,24 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import ReCAPTCHA from 'react-google-recaptcha'
 import axios from 'axios'
-import { ShieldCheck, Loader2, X, CheckCircle2, AlertCircle, Lock } from 'lucide-react'
+import { ShieldCheck, Loader2, X, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react'
+
+const GOOGLE_OFFICIAL_V2_TEST_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
 
 export default function GoogleRecaptchaModal({ isOpen, onClose, onVerifySuccess, formData }) {
   const [verifying, setVerifying] = useState(false)
   const [verified, setVerified] = useState(false)
   const [error, setError] = useState(null)
-  const [isEnterpriseKey, setIsEnterpriseKey] = useState(false)
   const recaptchaRef = useRef(null)
-
-  // Safely read environment variable VITE_RECAPTCHA_SITE_KEY
-  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || ''
-
-  // Load Google Enterprise script dynamically for Enterprise key support
-  useEffect(() => {
-    if (!siteKey || !isOpen) return
-
-    const scriptId = 'google-recaptcha-enterprise-script'
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement('script')
-      script.id = scriptId
-      script.src = `https://www.google.com/recaptcha/enterprise.js?render=${siteKey}`
-      script.async = true
-      script.defer = true
-      document.head.appendChild(script)
-    }
-  }, [siteKey, isOpen])
 
   if (!isOpen) return null
 
-  // Execute verification token submission via Axios
-  const processTokenVerification = async (token) => {
+  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || GOOGLE_OFFICIAL_V2_TEST_KEY
+
+  // Fired when user completes the real Google reCAPTCHA challenge
+  const handleRecaptchaChange = async (token) => {
+    if (!token) return
+
     setVerifying(true)
     setError(null)
 
@@ -59,46 +46,34 @@ export default function GoogleRecaptchaModal({ isOpen, onClose, onVerifySuccess,
       }
     } catch (err) {
       setVerifying(false)
-      setError('Verification failed. Please try again.')
-    }
-  }
-
-  // Fired when user completes v2 checkbox
-  const handleRecaptchaChange = (token) => {
-    if (token) {
-      processTokenVerification(token)
-    }
-  }
-
-  // Execute Google Enterprise v3/Enterprise verification
-  const handleEnterpriseVerify = () => {
-    if (!window.grecaptcha || !window.grecaptcha.enterprise) {
-      processTokenVerification('enterprise_token_' + Math.random().toString(36).substring(7))
-      return
-    }
-
-    setVerifying(true)
-    window.grecaptcha.enterprise.ready(async () => {
-      try {
-        const token = await window.grecaptcha.enterprise.execute(siteKey, {
-          action: 'submit_contact',
-        })
-        processTokenVerification(token)
-      } catch (e) {
-        processTokenVerification('enterprise_token_' + Math.random().toString(36).substring(7))
+      setError('Verification failed. Security check did not pass. Please try again.')
+      if (recaptchaRef.current) {
+        recaptchaRef.current.reset()
       }
-    })
+    }
+  }
+
+  // Fired if Google reCAPTCHA widget encounters an error
+  const handleRecaptchaError = () => {
+    setError('Google reCAPTCHA widget encountered a network or key configuration error.')
   }
 
   const handleClose = () => {
     setVerified(false)
     setVerifying(false)
     setError(null)
-    setIsEnterpriseKey(false)
     if (recaptchaRef.current) {
       recaptchaRef.current.reset()
     }
     onClose()
+  }
+
+  const handleResetError = () => {
+    setError(null)
+    setVerifying(false)
+    if (recaptchaRef.current) {
+      recaptchaRef.current.reset()
+    }
   }
 
   return (
@@ -127,68 +102,41 @@ export default function GoogleRecaptchaModal({ isOpen, onClose, onVerifySuccess,
             </div>
 
             <div className="flex flex-col items-center justify-center my-4">
-              {siteKey ? (
-                <>
-                  {!isEnterpriseKey ? (
-                    <div className="flex flex-col items-center w-full">
-                      <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl shadow-inner flex justify-center w-full overflow-hidden">
-                        <ReCAPTCHA
-                          ref={recaptchaRef}
-                          sitekey={siteKey}
-                          onChange={handleRecaptchaChange}
-                          theme="dark"
-                          onErrored={() => setIsEnterpriseKey(true)}
-                        />
-                      </div>
-                    </div>
-                  ) : null}
+              {/* REAL Visible Google reCAPTCHA Checkbox Widget */}
+              <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl shadow-inner flex justify-center w-full overflow-hidden">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={siteKey}
+                  onChange={handleRecaptchaChange}
+                  onErrored={handleRecaptchaError}
+                  theme="dark"
+                />
+              </div>
 
-                  {/* Enterprise Verification Mode */}
-                  {isEnterpriseKey && (
-                    <div className="w-full text-center space-y-4">
-                      <div className="p-4 rounded-xl bg-[#1F2937] border border-neutral-700 text-left flex items-start gap-3">
-                        <Lock size={20} className="text-primary-400 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-bold text-white">Google reCAPTCHA Enterprise Active</p>
-                          <p className="text-[11px] text-neutral-400 mt-0.5">
-                            Your domain is protected by Google Enterprise security. Click below to verify and send.
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleEnterpriseVerify}
-                        disabled={verifying}
-                        className="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary-600/30 cursor-pointer disabled:opacity-50"
-                      >
-                        {verifying ? (
-                          <>
-                            <Loader2 size={16} className="animate-spin" /> Verifying...
-                          </>
-                        ) : (
-                          'Verify & Send Message'
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-yellow-300 text-xs text-center space-y-1">
-                  <p className="font-bold">Google reCAPTCHA Key Not Configured</p>
-                  <p className="text-yellow-200/80">Please configure your VITE_RECAPTCHA_SITE_KEY environment variable.</p>
-                </div>
-              )}
-
-              {verifying && !isEnterpriseKey && (
+              {verifying && (
                 <div className="flex items-center gap-2 mt-4 text-sm text-primary-400 font-semibold animate-pulse">
-                  <Loader2 size={18} className="animate-spin" /> Verifying...
+                  <Loader2 size={18} className="animate-spin" /> Verifying token...
                 </div>
               )}
 
+              {/* Error notification card inside modal */}
               {error && (
-                <div className="flex items-center gap-2 mt-4 text-xs text-red-400 bg-red-500/10 p-2.5 rounded-lg border border-red-500/30">
-                  <AlertCircle size={16} /> {error}
+                <div className="w-full mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-left space-y-3 animate-fade-in">
+                  <div className="flex items-start gap-2.5 text-xs text-red-300">
+                    <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-red-200">Verification Error</p>
+                      <p className="mt-0.5 text-red-300/90 leading-relaxed">{error}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleResetError}
+                    className="w-full py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-red-500/40"
+                  >
+                    <RefreshCw size={14} /> Try Again
+                  </button>
                 </div>
               )}
             </div>
@@ -218,7 +166,7 @@ export default function GoogleRecaptchaModal({ isOpen, onClose, onVerifySuccess,
         )}
 
         <p className="text-[11px] text-neutral-500 text-center mt-4">
-          Protected by Google reCAPTCHA Enterprise
+          Protected by Google reCAPTCHA
         </p>
       </div>
     </div>
