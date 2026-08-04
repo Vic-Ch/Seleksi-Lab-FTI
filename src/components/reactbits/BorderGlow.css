@@ -1,0 +1,61 @@
+/* BorderGlow component styles */
+
+.border-glow-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--border-radius, 24px);
+  padding: 1px; /* Border width */
+  background: var(--gradient-base, #111827);
+  isolation: isolate;
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
+}
+
+/* Edge light glow effect */
+.border-glow-card .edge-light {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  opacity: calc(var(--edge-proximity, 0) / 100);
+  transition: opacity 0.3s ease;
+  background: conic-gradient(
+    from var(--cursor-angle, 0deg) at 50% 50%,
+    var(--glow-color, #2563EB) 0deg,
+    var(--glow-color-60, rgba(37, 99, 235, 0.6)) calc(var(--cone-spread, 25) * 1deg),
+    transparent calc(var(--cone-spread, 25) * 2deg),
+    transparent calc(360deg - (var(--cone-spread, 25) * 2deg)),
+    var(--glow-color-60, rgba(37, 99, 235, 0.6)) calc(360deg - (var(--cone-spread, 25) * 1deg)),
+    var(--glow-color, #2563EB) 360deg
+  );
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  padding: 1.5px;
+}
+
+/* Inner card container */
+.border-glow-inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--border-radius, 24px) - 1px);
+  background-color: var(--card-bg, #111827);
+  transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* Card hover styles */
+.border-glow-card:hover {
+  transform: translateY(-4px);
+}
+
+.border-glow-card:hover .border-glow-inner {
+  background-color: var(--card-hover-bg, #1A2338);
+}
+
+.border-glow-card:hover .edge-light {
+  opacity: 1;
+}
